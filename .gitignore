@@ -1,0 +1,17 @@
+# Frontend
+frontend/node_modules/
+frontend/.next/
+frontend/.env.local
+
+# Backend
+backend/venv/
+backend/__pycache__/
+backend/routers/__pycache__/
+backend/*.pyc
+
+# Data — comment this out if you want to commit your game state
+# backend/data/state.json
+
+# OS
+.DS_Store
+Thumbs.db
