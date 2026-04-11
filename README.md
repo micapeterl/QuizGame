@@ -1,4 +1,4 @@
-# 🎯 Quiz Arena
+# Quiz Arena
 
 A game show quiz platform with Jeopardy (and more to come). Built with Next.js 14 + FastAPI + Tailwind CSS v3. Game state persists to a local JSON file between sessions.
 

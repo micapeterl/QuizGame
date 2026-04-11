@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { Settings, ArrowLeft } from 'lucide-react'
 import type { JeopardyCell, Player } from '@/types'
 import Modal from '@/components/ui/Modal'
@@ -33,6 +33,51 @@ export default function QuestionScreen({
   const pts = basePts * (row + 1)
   const data = mode === 'question' ? cell.question : cell.answer
   const hasContent = data.text || data.image
+
+  // ── Auto-scale text to fit container ───────────────────
+  const containerRef = useRef<HTMLDivElement>(null)
+  const textRef      = useRef<HTMLParagraphElement>(null)
+
+  const scaleText = useCallback(() => {
+    const container = containerRef.current
+    const textEl    = textRef.current
+    if (!container || !textEl) return
+
+    const maxSize = data.image ? 32 : 56
+    const minSize = 12
+
+    // Available space = container minus its own padding
+    const style     = window.getComputedStyle(container)
+    const padTop    = parseFloat(style.paddingTop)
+    const padBottom = parseFloat(style.paddingBottom)
+    const padLeft   = parseFloat(style.paddingLeft)
+    const padRight  = parseFloat(style.paddingRight)
+    const availH    = container.clientHeight - padTop - padBottom
+    const availW    = container.clientWidth  - padLeft - padRight
+
+    // Binary search for the largest font size that fits
+    let lo = minSize, hi = maxSize
+    textEl.style.fontSize = `${hi}px`
+
+    while (lo < hi) {
+      const mid = Math.floor((lo + hi + 1) / 2)
+      textEl.style.fontSize = `${mid}px`
+      if (textEl.scrollHeight <= availH && textEl.scrollWidth <= availW) {
+        lo = mid
+      } else {
+        hi = mid - 1
+      }
+    }
+
+    textEl.style.fontSize = `${lo}px`
+  }, [data.image, data.text])
+
+  useEffect(() => {
+    scaleText()
+    // Re-run on window resize
+    window.addEventListener('resize', scaleText)
+    return () => window.removeEventListener('resize', scaleText)
+  }, [scaleText])
 
   function openEdit() {
     setEditText(data.text)
@@ -72,7 +117,7 @@ export default function QuestionScreen({
 
   return (
     <div
-      className="relative h-full flex items-center justify-center"
+      className="relative h-full flex flex-col"
       style={{ background: mode === 'answer' ? '#0a0c10' : '#0d0d0d' }}
     >
       {/* Gear icon top-right */}
@@ -85,26 +130,42 @@ export default function QuestionScreen({
         <Settings size={15} />
       </button>
 
-      {/* Content */}
-      <div className="flex flex-col items-center justify-center gap-6 px-16 py-20 w-full max-w-[1000px] text-center overflow-hidden">
+      {/* Content — fills all space between topbar and bottom buttons */}
+      <div
+        ref={containerRef}
+        className="flex-1 min-h-0 flex flex-col items-center justify-center gap-4
+                   px-16 pt-12 pb-20 w-full overflow-hidden"
+      >
         {hasContent ? (
           <>
             {data.image && (
-              <div className="flex-shrink-0 max-h-[45vh] flex items-center justify-center">
+              <div className={`min-h-0 w-full flex items-center justify-center
+                              ${data.text ? 'flex-1' : 'flex-[2]'}`}>
                 <img
                   src={data.image}
                   alt=""
-                  className="max-h-[45vh] max-w-full object-contain rounded-lg border border-border"
+                  className="max-h-full max-w-full w-auto h-auto object-contain rounded-lg border border-border"
+                  style={{ maxHeight: data.text ? '50vh' : '75vh' }}
                 />
               </div>
             )}
             {data.text && (
-              <p
-                className="text-[clamp(22px,4vw,56px)] font-bold leading-tight tracking-tight break-words max-w-[860px]"
-                style={{ color: mode === 'answer' ? '#f5a623' : '#e8e8e8' }}
+              <div
+                className={`min-h-0 w-full flex items-center justify-center
+                            ${data.image ? 'flex-shrink-0' : 'flex-1 overflow-hidden'}`}
               >
-                {data.text}
-              </p>
+                <p
+                  ref={textRef}
+                  className="text-center font-bold leading-tight tracking-tight break-words
+                             max-w-[860px] w-full"
+                  style={{
+                    color: mode === 'answer' ? '#f5a623' : '#e8e8e8',
+                    fontSize: data.image ? 'clamp(14px, 2.2vw, 32px)' : '56px',
+                  }}
+                >
+                  {data.text}
+                </p>
+              </div>
             )}
           </>
         ) : (

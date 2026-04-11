@@ -49,6 +49,14 @@ class PlayerModel(BaseModel):
             self.color = DEFAULTS[self.colorIndex % len(DEFAULTS)]
 
 
+# ── Custom font ──────────────────────────────────────────
+class CustomFontModel(BaseModel):
+    label: str
+    value: str
+    dataUrl: str
+    format: str = "truetype"
+
+
 # ── Home screen settings ─────────────────────────────────
 class GameCardSettings(BaseModel):
     id: str
@@ -63,11 +71,12 @@ class HomeSettingsModel(BaseModel):
     title: str = "QuizArena"
     font: str = "Inter"
     cards: list[GameCardSettings] = [
-        GameCardSettings(id="jeopardy", name="Jeopardy",        desc="Categories & clues — answer in the form of a question", available=True),
-        GameCardSettings(id="wheel",    name="Wheel of Fortune", desc="Spin, buy vowels, solve the puzzle",                    available=False),
-        GameCardSettings(id="trivia",   name="Trivia Blitz",     desc="Lightning-round rapid-fire questions",                  available=False),
-        GameCardSettings(id="price",    name="Price Match",      desc="Guess the closest without going over",                  available=False),
+        GameCardSettings(id="jeopardy",    name="Jeopardy",        desc="Categories & clues — answer in the form of a question", available=True),
+        GameCardSettings(id="commonlink",  name="Common Link",     desc="Find the link, spot the odd one out, or finish the sequence", available=True),
+        GameCardSettings(id="trivia",      name="Trivia Blitz",    desc="Lightning-round rapid-fire questions",                  available=False),
+        GameCardSettings(id="price",       name="Price Match",     desc="Guess the closest without going over",                  available=False),
     ]
+    customFonts: list[CustomFontModel] = []
 
 
 # ── Full game state (persisted to JSON) ──────────────────
@@ -75,6 +84,7 @@ class GameStateModel(BaseModel):
     players: list[PlayerModel] = []
     activePlayerId: Optional[str] = None
     jeopardy: Optional[JeopardyBoardModel] = None
+    commonLink: Optional[CLBoardModel] = None
     homeSettings: HomeSettingsModel = HomeSettingsModel()
 
 
@@ -132,3 +142,69 @@ class UpdateHomeSettingsRequest(BaseModel):
     title: str
     font: str
     cards: list[GameCardSettings]
+    customFonts: list[CustomFontModel] = []
+
+
+# ══════════════════════════════════════════════════════════
+# ── Common Link game models ───────────────────────────────
+# ══════════════════════════════════════════════════════════
+
+# One of the four slots shown on a question page
+class CLSlotModel(BaseModel):
+    text: str = ""
+    image: Optional[str] = None   # base64 dataURL
+
+# A single question — variant determines behaviour
+# variant: "common_link" | "odd_one_out" | "sequence"
+class CLQuestionModel(BaseModel):
+    variant: str = "common_link"
+    slots: list[CLSlotModel] = [CLSlotModel(), CLSlotModel(), CLSlotModel(), CLSlotModel()]
+    # common_link: revealed answer text
+    answerText: str = ""
+    # odd_one_out: index (0-3) of the correct slot
+    answerIndex: Optional[int] = None
+    # sequence: index (0-3) of the hidden slot
+    hiddenIndex: Optional[int] = None
+    answered: bool = False
+
+# A category column (one of the three variant categories)
+class CLCategoryModel(BaseModel):
+    variant: str          # "common_link" | "odd_one_out" | "sequence"
+    name: str
+    description: str = ""
+    bgImage: Optional[str] = None
+    points: int = 200
+    questions: list[CLQuestionModel] = []
+
+# The full board
+class CLBoardModel(BaseModel):
+    id: str
+    categories: list[CLCategoryModel] = []
+
+# ── CL request bodies ─────────────────────────────────────
+class BuildCLBoardRequest(BaseModel):
+    common_link_rounds: int = 3
+    odd_one_out_rounds: int = 3
+    sequence_rounds: int = 3
+    common_link_pts: int = 200
+    odd_one_out_pts: int = 200
+    sequence_pts: int = 200
+
+class UpdateCLCategoryRequest(BaseModel):
+    cat_index: int
+    name: str
+    description: str = ""
+    bg_image: Optional[str] = None
+
+class UpdateCLQuestionRequest(BaseModel):
+    cat_index: int
+    q_index: int
+    slots: list[CLSlotModel]
+    answer_text: str = ""
+    answer_index: Optional[int] = None
+    hidden_index: Optional[int] = None
+
+class MarkCLAnsweredRequest(BaseModel):
+    cat_index: int
+    q_index: int
+    answered: bool

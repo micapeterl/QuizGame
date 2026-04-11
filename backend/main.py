@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from store import get_state, mutate_and_save
 from models import UpdateHomeSettingsRequest, HomeSettingsModel
-from routers import players, jeopardy
+from routers import players, jeopardy, commonlink
 
 app = FastAPI(title="Quiz Arena API")
 
@@ -16,6 +16,7 @@ app.add_middleware(
 
 app.include_router(players.router)
 app.include_router(jeopardy.router)
+app.include_router(commonlink.router)
 
 
 @app.get("/api/state")
@@ -31,6 +32,7 @@ def update_home_settings(req: UpdateHomeSettingsRequest):
             title=req.title,
             font=req.font,
             cards=req.cards,
+            customFonts=req.customFonts,
         )
     mutate_and_save(_update)
     return {"ok": True}

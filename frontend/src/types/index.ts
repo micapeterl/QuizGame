@@ -42,10 +42,49 @@ export interface GameCard {
   available: boolean
 }
 
+export interface CustomFont {
+  label: string       // display name entered by user
+  value: string       // same as label, used as CSS font-family
+  dataUrl: string     // base64 data URL of the font file
+  format: string      // 'truetype' | 'opentype' | 'woff' | 'woff2'
+}
+
 export interface HomeSettings {
   title: string
   font: string
   cards: GameCard[]
+  customFonts: CustomFont[]
+}
+
+// ── Common Link game ──────────────────────────────────
+export type CLVariant = 'common_link' | 'odd_one_out' | 'sequence'
+
+export interface CLSlot {
+  text: string
+  image: string | null
+}
+
+export interface CLQuestion {
+  variant: CLVariant
+  slots: CLSlot[]
+  answerText: string
+  answerIndex: number | null   // odd_one_out
+  hiddenIndex: number | null   // sequence
+  answered: boolean
+}
+
+export interface CLCategory {
+  variant: CLVariant
+  name: string
+  description: string
+  bgImage: string | null
+  points: number
+  questions: CLQuestion[]
+}
+
+export interface CLBoard {
+  id: string
+  categories: CLCategory[]
 }
 
 // ── Game state (persisted) ────────────────────────────
@@ -53,6 +92,7 @@ export interface GameState {
   players: Player[]
   activePlayerId: string | null
   jeopardy: JeopardyBoard | null
+  commonLink: CLBoard | null
   homeSettings: HomeSettings
 }
 

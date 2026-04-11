@@ -52,3 +52,32 @@ export const advanceTurn = () =>
 
 export const reorderPlayers = (ids: string[]) =>
   api.post('/players/reorder', { ids }).then(r => r.data)
+
+// ── Common Link ───────────────────────────────────────────────────────────────
+export const buildCLBoard = (
+  common_link_rounds: number, odd_one_out_rounds: number, sequence_rounds: number,
+  common_link_pts: number, odd_one_out_pts: number, sequence_pts: number
+) => api.post('/commonlink/build', {
+  common_link_rounds, odd_one_out_rounds, sequence_rounds,
+  common_link_pts, odd_one_out_pts, sequence_pts,
+}).then(r => r.data)
+
+export const updateCLCategory = (
+  cat_index: number, name: string, description: string, bg_image: string | null
+) => api.patch('/commonlink/category', { cat_index, name, description, bg_image }).then(r => r.data)
+
+export const updateCLQuestion = (
+  cat_index: number, q_index: number,
+  slots: import('@/types').CLSlot[],
+  answer_text: string,
+  answer_index: number | null,
+  hidden_index: number | null,
+) => api.patch('/commonlink/question', {
+  cat_index, q_index, slots, answer_text, answer_index, hidden_index,
+}).then(r => r.data)
+
+export const markCLAnswered = (cat_index: number, q_index: number, answered: boolean) =>
+  api.patch('/commonlink/question/answered', { cat_index, q_index, answered }).then(r => r.data)
+
+export const resetCLBoard = () =>
+  api.post('/commonlink/reset').then(r => r.data)
