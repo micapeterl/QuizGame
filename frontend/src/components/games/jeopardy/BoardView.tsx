@@ -202,6 +202,26 @@ export default function JeopardyBoardView({ board, onBack, onCellClick, onRefres
                                       ${answered ? 'opacity-0' : 'text-accent'}`}>
                       {pts}
                     </span>
+
+                    {/* Content indicators — absolute so they never shift the point text */}
+                    {!answered && (() => {
+                      const q = cell?.question
+                      const a = cell?.answer
+                      const qEmpty = !q?.text && !q?.image
+                      const aEmpty = !a?.text && !a?.image
+                      if (!qEmpty && !aEmpty) return null
+                      const bothEmpty = qEmpty && aEmpty
+                      return (
+                        <span
+                          className="absolute top-1 right-1.5 text-[9px] font-black leading-none
+                                     pointer-events-none select-none"
+                          style={{ color: bothEmpty ? '#888' : qEmpty ? '#f5a623' : '#e05d5d' }}
+                          title={bothEmpty ? 'Question and answer are empty' : qEmpty ? 'Question is empty' : 'Answer is empty'}
+                        >
+                          {bothEmpty ? '✏' : qEmpty ? '?' : '!'}
+                        </span>
+                      )
+                    })()}
                   </button>
                 )
               })

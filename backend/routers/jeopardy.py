@@ -1,14 +1,17 @@
 import uuid
+import random
 from fastapi import APIRouter, HTTPException
 from models import (
     JeopardyBoardModel,
     CategoryModel,
     CellModel,
     ContentModel,
+    DoubleSettingsModel,
     BuildBoardRequest,
     UpdateCategoryRequest,
     UpdateCellRequest,
     MarkAnsweredRequest,
+    UpdateDoubleSettingsRequest,
 )
 from store import get_state, mutate_and_save
 
@@ -24,13 +27,14 @@ def build_board(req: BuildBoardRequest):
     state = get_state()
     old   = state.jeopardy
 
-    # Preserve existing category names/images if column count allows
     def prev_cat(c: int) -> CategoryModel:
         if old and c < old.cols and c < len(old.categories):
-            return old.categories[c]
-        return CategoryModel(name=f"Category {c + 1}")
+            existing = old.categories[c]
+            # Re-assign a fresh random doubleIndex for the new row count
+            existing.doubleIndex = random.randint(0, rows - 1)
+            return existing
+        return CategoryModel(name=f"Category {c + 1}", doubleIndex=random.randint(0, rows - 1))
 
-    # Preserve existing cell content if dimensions allow
     def prev_cell(c: int, r: int) -> CellModel:
         if old and c < old.cols and r < old.rows:
             try:
@@ -39,6 +43,9 @@ def build_board(req: BuildBoardRequest):
                 pass
         return CellModel()
 
+    # Preserve existing double settings if board already had them
+    prev_double = old.doubleSettings if old else DoubleSettingsModel()
+
     new_board = JeopardyBoardModel(
         id=str(uuid.uuid4()),
         cols=cols,
@@ -46,6 +53,7 @@ def build_board(req: BuildBoardRequest):
         basePts=base_pts,
         categories=[prev_cat(c) for c in range(cols)],
         cells=[[prev_cell(c, r) for r in range(rows)] for c in range(cols)],
+        doubleSettings=prev_double,
     )
 
     def _build(s):
@@ -105,9 +113,24 @@ def mark_answered(req: MarkAnsweredRequest):
     return {"ok": True}
 
 
+@router.patch("/double-settings")
+def update_double_settings(req: UpdateDoubleSettingsRequest):
+    state = get_state()
+    if not state.jeopardy:
+        raise HTTPException(status_code=400, detail="No board configured")
+
+    def _update(s):
+        s.jeopardy.doubleSettings = DoubleSettingsModel(
+            text=req.text,
+            image=req.image,
+            audio=req.audio,
+        )
+    mutate_and_save(_update)
+    return {"ok": True}
+
+
 @router.post("/reset")
 def reset_board():
-    """Mark all cells as unanswered, making the full board visible again."""
     state = get_state()
     if not state.jeopardy:
         raise HTTPException(status_code=400, detail="No board configured")

@@ -20,6 +20,14 @@ class CellModel(BaseModel):
 class CategoryModel(BaseModel):
     name: str
     bgImage: Optional[str] = None
+    doubleIndex: Optional[int] = None   # which row is the double-points question
+
+
+# ── Double-points popup settings ─────────────────────────
+class DoubleSettingsModel(BaseModel):
+    text:  str = "DOUBLE POINTS!"
+    image: Optional[str] = None   # base64 dataURL
+    audio: Optional[str] = None   # base64 dataURL
 
 
 # ── Jeopardy board ───────────────────────────────────────
@@ -30,6 +38,7 @@ class JeopardyBoardModel(BaseModel):
     basePts: int
     categories: list[CategoryModel]
     cells: list[list[CellModel]]   # [col][row]
+    doubleSettings: DoubleSettingsModel = DoubleSettingsModel()
 
 
 # ── Player ───────────────────────────────────────────────
@@ -136,6 +145,12 @@ class MarkAnsweredRequest(BaseModel):
     col: int
     row: int
     answered: bool
+
+
+class UpdateDoubleSettingsRequest(BaseModel):
+    text:  str
+    image: Optional[str] = None
+    audio: Optional[str] = None
 
 
 class UpdateHomeSettingsRequest(BaseModel):

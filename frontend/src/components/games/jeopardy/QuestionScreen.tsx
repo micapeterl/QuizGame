@@ -16,6 +16,8 @@ interface QuestionScreenProps {
   isDouble: boolean
   doubleSettings: DoubleSettings
   activePlayer: Player | null
+  halfPoints: boolean        // true when active player has cycled back to initiator
+  initiatorId: string | null
   onBack: () => void
   onReveal: () => void
   onAward: () => void
@@ -25,7 +27,8 @@ interface QuestionScreenProps {
 export default function QuestionScreen({
   col, row, cell, basePts, mode,
   isDouble, doubleSettings,
-  activePlayer, onBack, onReveal, onAward, onRefresh
+  activePlayer, halfPoints, initiatorId,
+  onBack, onReveal, onAward, onRefresh
 }: QuestionScreenProps) {
   const [editOpen, setEditOpen]   = useState(false)
   const [editText, setEditText]   = useState('')
@@ -38,7 +41,8 @@ export default function QuestionScreen({
   const [popupOpacity, setPopupOpacity]   = useState(1)
   const audioRef = useRef<HTMLAudioElement | null>(null)
 
-  const pts = basePts * (row + 1) * (isDouble ? 2 : 1)
+  const basePtsCalc = basePts * (row + 1) * (isDouble ? 2 : 1)
+  const pts = halfPoints ? Math.floor(basePtsCalc / 2) : basePtsCalc
   const data = mode === 'question' ? cell.question : cell.answer
   const hasContent = data.text || data.image
 
@@ -190,6 +194,16 @@ export default function QuestionScreen({
                         border-b border-accent/30 bg-accent/8">
           <span className="text-[11px] font-black uppercase tracking-widest text-accent">
             ⚡ {doubleSettings.text || 'DOUBLE POINTS!'} ⚡
+          </span>
+        </div>
+      )}
+
+      {/* ── Half points banner — shown when active player is back to initiator ── */}
+      {halfPoints && (
+        <div className="flex-shrink-0 flex items-center justify-center gap-2 py-2
+                        border-b border-red-500/30 bg-red-500/8">
+          <span className="text-[11px] font-black uppercase tracking-widest text-red-400">
+            ½ Points — Second question round
           </span>
         </div>
       )}

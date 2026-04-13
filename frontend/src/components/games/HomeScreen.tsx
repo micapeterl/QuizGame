@@ -1,6 +1,6 @@
 'use client'
 import { useRef, useState } from 'react'
-import { Settings, Upload, X, Plus } from 'lucide-react'
+import { Settings, Upload, X, Plus, Shuffle } from 'lucide-react'
 import type { HomeSettings, GameCard, CustomFont } from '@/types'
 import Modal from '@/components/ui/Modal'
 import { FormField, inputClass } from '@/components/ui/FormField'
@@ -114,14 +114,20 @@ function CardImageButton({ value, onChange }: { value: string | null; onChange: 
 // ── Main component ────────────────────────────────────────────────────────────
 interface HomeScreenProps {
   settings: HomeSettings
+  players: Player[]
+  activePlayerId: string | null
   onSelectGame: (game: string) => void
   onSettingsChange: (updated: HomeSettings) => void
+  onRefresh: () => void
+  onRollResults: (results: Record<string, number>) => void
 }
 
-export default function HomeScreen({ settings, onSelectGame, onSettingsChange }: HomeScreenProps) {
+export default function HomeScreen({ settings, players, activePlayerId, onSelectGame, onSettingsChange, onRefresh, onRollResults }: HomeScreenProps) {
   const [modalOpen, setModalOpen] = useState(false)
   const [draft, setDraft]         = useState<HomeSettings>(settings)
   const [saving, setSaving]       = useState(false)
+  const [rolling, setRolling]     = useState(false)
+  const [rolled, setRolled]       = useState(false)
 
   // Custom font import state
   const fontFileRef               = useRef<HTMLInputElement>(null)
@@ -204,6 +210,46 @@ export default function HomeScreen({ settings, onSelectGame, onSettingsChange }:
     }
   }
 
+  async function handleRollOrder() {
+    if (players.length < 2) return
+    setRolling(true)
+    setRolled(false)
+
+    // Assign unique D20 values (no ties) — draw without replacement from 1-20
+    const pool = Array.from({ length: 20 }, (_, i) => i + 1)
+    // Shuffle the pool
+    for (let i = pool.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1))
+      ;[pool[i], pool[j]] = [pool[j], pool[i]]
+    }
+    // Each player gets the next unique value from the pool
+    const assignments: Record<string, number> = {}
+    players.forEach((p, i) => { assignments[p.id] = pool[i] })
+
+    // Stagger bubble reveals — one per player, 180ms apart
+    for (let i = 0; i < players.length; i++) {
+      await new Promise<void>(res => setTimeout(res, i === 0 ? 0 : 180))
+      const partial: Record<string, number> = {}
+      players.slice(0, i + 1).forEach(p => { partial[p.id] = assignments[p.id] })
+      onRollResults({ ...partial })
+    }
+
+    // Hold all bubbles visible for 1.8s so everyone can read them
+    await new Promise<void>(res => setTimeout(res, 1800))
+
+    // Reorder by roll descending (highest first)
+    const sorted = [...players].sort((a, b) => assignments[b.id] - assignments[a.id])
+    await api.reorderPlayers(sorted.map(p => p.id))
+    await onRefresh()
+
+    // Fade bubbles out after reorder settles
+    await new Promise<void>(res => setTimeout(res, 400))
+    onRollResults({})
+    setRolling(false)
+    setRolled(true)
+    setTimeout(() => setRolled(false), 2500)
+  }
+
   // All fonts available in the dropdown = built-ins + custom
   const allFonts = [
     ...BUILTIN_FONTS,
@@ -228,11 +274,31 @@ export default function HomeScreen({ settings, onSelectGame, onSettingsChange }:
         <Settings size={14} />
       </button>
 
-      <div className="text-center">
-        <h1 className="text-[clamp(32px,5vw,52px)] font-black tracking-tight leading-none">
-          {titleDisplay.plain}<span className="text-accent">{titleDisplay.accent}</span>
-        </h1>
-        <p className="text-[13px] text-tx-secondary mt-2">Select a game mode to get started</p>
+      <div className="text-center flex flex-col items-center gap-4">
+        <div>
+          <h1 className="text-[clamp(32px,5vw,52px)] font-black tracking-tight leading-none">
+            {titleDisplay.plain}<span className="text-accent">{titleDisplay.accent}</span>
+          </h1>
+          <p className="text-[13px] text-tx-secondary mt-2">Select a game mode to get started</p>
+        </div>
+
+        {/* Roll Order button — only shown when no active player selected and 2+ players exist */}
+        {players.length >= 2 && !activePlayerId && (
+          <button
+            onClick={handleRollOrder}
+            disabled={rolling}
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-lg border font-semibold
+                        text-[13px] transition-all duration-200
+                        ${rolled
+                          ? 'border-accent/50 bg-accent/10 text-accent'
+                          : 'border-border hover:border-border-focus bg-bg-panel hover:bg-bg-hover text-tx-secondary hover:text-tx-primary'
+                        }
+                        disabled:opacity-50`}
+          >
+            <Shuffle size={14} className={rolling ? 'animate-spin' : ''} />
+            {rolling ? 'Shuffling...' : rolled ? 'Order rolled! ✓' : 'Roll Player Order'}
+          </button>
+        )}
       </div>
 
       <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-2.5 w-full max-w-[860px]">
