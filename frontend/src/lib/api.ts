@@ -81,3 +81,6 @@ export const markCLAnswered = (cat_index: number, q_index: number, answered: boo
 
 export const resetCLBoard = () =>
   api.post('/commonlink/reset').then(r => r.data)
+
+export const updateDoubleSettings = (text: string, image: string | null, audio: string | null) =>
+  api.patch('/jeopardy/double-settings', { text, image, audio }).then(r => r.data)

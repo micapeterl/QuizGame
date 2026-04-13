@@ -136,6 +136,8 @@ export default function Page() {
             cell={currentCell}
             basePts={state.jeopardy.basePts}
             mode="question"
+            isDouble={state.jeopardy.categories[activeCell.col]?.doubleIndex === activeCell.row}
+            doubleSettings={state.jeopardy.doubleSettings ?? { text: 'DOUBLE POINTS!', image: null, audio: null }}
             activePlayer={activePlayer}
             onBack={() => setScreen('jeopardy')}
             onReveal={() => setScreen('answer')}
@@ -151,6 +153,8 @@ export default function Page() {
             cell={currentCell}
             basePts={state.jeopardy.basePts}
             mode="answer"
+            isDouble={state.jeopardy.categories[activeCell.col]?.doubleIndex === activeCell.row}
+            doubleSettings={state.jeopardy.doubleSettings ?? { text: 'DOUBLE POINTS!', image: null, audio: null }}
             activePlayer={activePlayer}
             onBack={() => setScreen('jeopardy')}
             onReveal={() => {}}

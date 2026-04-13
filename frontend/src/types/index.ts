@@ -22,6 +22,13 @@ export interface JeopardyCell {
 export interface JeopardyCategory {
   name: string
   bgImage: string | null
+  doubleIndex: number | null
+}
+
+export interface DoubleSettings {
+  text: string
+  image: string | null
+  audio: string | null
 }
 
 export interface JeopardyBoard {
@@ -31,6 +38,7 @@ export interface JeopardyBoard {
   basePts: number
   categories: JeopardyCategory[]
   cells: JeopardyCell[][]   // [col][row]
+  doubleSettings: DoubleSettings
 }
 
 // ── Home settings ─────────────────────────────────────

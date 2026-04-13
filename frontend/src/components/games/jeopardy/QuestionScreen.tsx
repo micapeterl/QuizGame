@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { Settings, ArrowLeft } from 'lucide-react'
-import type { JeopardyCell, Player } from '@/types'
+import type { JeopardyCell, DoubleSettings, Player } from '@/types'
 import Modal from '@/components/ui/Modal'
 import ImageUpload from '@/components/ui/ImageUpload'
 import { FormField, inputClass } from '@/components/ui/FormField'
@@ -13,24 +13,32 @@ interface QuestionScreenProps {
   cell: JeopardyCell
   basePts: number
   mode: 'question' | 'answer'
+  isDouble: boolean
+  doubleSettings: DoubleSettings
   activePlayer: Player | null
-  onBack: () => void             // back to board (no award)
-  onReveal: () => void           // question → answer
-  onAward: () => void            // award + back to board
+  onBack: () => void
+  onReveal: () => void
+  onAward: () => void
   onRefresh: () => void
 }
 
 export default function QuestionScreen({
   col, row, cell, basePts, mode,
+  isDouble, doubleSettings,
   activePlayer, onBack, onReveal, onAward, onRefresh
 }: QuestionScreenProps) {
-  const [editOpen, setEditOpen] = useState(false)
-  const [editText, setEditText] = useState('')
+  const [editOpen, setEditOpen]   = useState(false)
+  const [editText, setEditText]   = useState('')
   const [editImage, setEditImage] = useState<string | null>(null)
-  const [saving, setSaving]     = useState(false)
+  const [saving, setSaving]       = useState(false)
   const [awardWarn, setAwardWarn] = useState(false)
 
-  const pts = basePts * (row + 1)
+  // Double popup state — only fires on question mode
+  const [popupVisible, setPopupVisible]   = useState(false)
+  const [popupOpacity, setPopupOpacity]   = useState(1)
+  const audioRef = useRef<HTMLAudioElement | null>(null)
+
+  const pts = basePts * (row + 1) * (isDouble ? 2 : 1)
   const data = mode === 'question' ? cell.question : cell.answer
   const hasContent = data.text || data.image
 
@@ -79,6 +87,35 @@ export default function QuestionScreen({
     return () => window.removeEventListener('resize', scaleText)
   }, [scaleText])
 
+  // ── Double popup: fires once on mount if this is a double question ────────
+  useEffect(() => {
+    if (!isDouble || mode !== 'question') return
+
+    setPopupVisible(true)
+    setPopupOpacity(1)
+
+    // Play audio if set
+    if (doubleSettings.audio) {
+      const audio = new Audio(doubleSettings.audio)
+      audioRef.current = audio
+      audio.play().catch(() => {})
+    }
+
+    // Fade starts at 4s, fully hidden at 5.5s
+    const fadeTimer = setTimeout(() => setPopupOpacity(0), 4000)
+    const hideTimer = setTimeout(() => {
+      setPopupVisible(false)
+      audioRef.current?.pause()
+    }, 5500)
+
+    return () => {
+      clearTimeout(fadeTimer)
+      clearTimeout(hideTimer)
+      audioRef.current?.pause()
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   function openEdit() {
     setEditText(data.text)
     setEditImage(data.image)
@@ -120,6 +157,43 @@ export default function QuestionScreen({
       className="relative h-full flex flex-col"
       style={{ background: mode === 'answer' ? '#0a0c10' : '#0d0d0d' }}
     >
+      {/* ── Double Points Popup ── */}
+      {popupVisible && (
+        <div
+          className="absolute inset-0 z-50 flex flex-col items-center justify-center gap-6
+                     bg-black/90"
+          style={{ opacity: popupOpacity, transition: 'opacity 1.5s ease' }}
+        >
+          {doubleSettings.image && (
+            <img
+              src={doubleSettings.image}
+              alt=""
+              className="max-h-[45vh] max-w-[80%] object-contain rounded-xl"
+            />
+          )}
+          <p
+            className="font-black text-center tracking-wide px-8"
+            style={{
+              fontSize: 'clamp(32px, 7vw, 96px)',
+              color: '#f5a623',
+              textShadow: '0 0 40px rgba(245,166,35,0.6), 0 0 80px rgba(245,166,35,0.3)',
+            }}
+          >
+            {doubleSettings.text || 'DOUBLE POINTS!'}
+          </p>
+        </div>
+      )}
+
+      {/* ── Double Points banner (stays after popup fades) ── */}
+      {isDouble && !popupVisible && mode === 'question' && (
+        <div className="flex-shrink-0 flex items-center justify-center gap-2 py-2
+                        border-b border-accent/30 bg-accent/8">
+          <span className="text-[11px] font-black uppercase tracking-widest text-accent">
+            ⚡ {doubleSettings.text || 'DOUBLE POINTS!'} ⚡
+          </span>
+        </div>
+      )}
+
       {/* Gear icon top-right */}
       <button
         onClick={openEdit}
