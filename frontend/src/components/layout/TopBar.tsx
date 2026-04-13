@@ -1,5 +1,6 @@
 'use client'
 import { Users } from 'lucide-react'
+import TimerButton from '@/components/layout/TimerButton'
 import type { Player } from '@/types'
 import { getInitial } from '@/lib/colors'
 
@@ -81,9 +82,14 @@ interface TopBarProps {
   nextPlayerLocked: boolean
   onSetActive: (id: string) => void
   onAdvanceTurn: () => void
+  showTimer: boolean
+  timerSeconds: number
+  timerKey: number       // increment to reset the timer
+  timerAutoStart: boolean
+  onTimerExpire: () => void
 }
 
-export default function TopBar({ players, activePlayerId, rollResults, finalGuessPlayerId, nextPlayerLocked, onToggleSidebar, onSetActive, onAdvanceTurn }: TopBarProps) {
+export default function TopBar({ players, activePlayerId, rollResults, finalGuessPlayerId, nextPlayerLocked, onToggleSidebar, onSetActive, onAdvanceTurn, showTimer, timerSeconds, timerKey, timerAutoStart, onTimerExpire }: TopBarProps) {
   const isRolling = Object.keys(rollResults).length > 0
 
   return (
@@ -182,6 +188,16 @@ export default function TopBar({ players, activePlayerId, rollResults, finalGues
           <span className="text-[12px] text-tx-dim pl-1">No players — add one to get started</span>
         )}
       </div>
+
+      {/* Turn timer — only shown on question pages */}
+      {showTimer && (
+        <TimerButton
+          key={timerKey}
+          totalSeconds={timerSeconds}
+          autoStart={timerAutoStart}
+          onExpire={onTimerExpire}
+        />
+      )}
 
       {/* Next Player button — only shown when there are players */}
       {players.length > 1 && (

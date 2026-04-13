@@ -9,18 +9,21 @@ import * as api from '@/lib/api'
 
 interface JeopardyBoardProps {
   board: JeopardyBoard | null
+  title: string
   onBack: () => void
   onCellClick: (col: number, row: number) => void
   onRefresh: () => void
 }
 
-export default function JeopardyBoardView({ board, onBack, onCellClick, onRefresh }: JeopardyBoardProps) {
+export default function JeopardyBoardView({ board, title, onBack, onCellClick, onRefresh }: JeopardyBoardProps) {
   // Settings modal
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [cols, setCols]       = useState(6)
   const [rows, setRows]       = useState(5)
-  const [basePts, setBasePts] = useState(200)
-  const [building, setBuilding] = useState(false)
+  const [basePts, setBasePts]         = useState(200)
+  const [baseTimer, setBaseTimer]     = useState(30)
+  const [timerIncrement, setTimerInc] = useState(0)
+  const [building, setBuilding]       = useState(false)
 
   // Double points settings (inside main settings modal)
   const [dblText, setDblText]   = useState('DOUBLE POINTS!')
@@ -33,6 +36,8 @@ export default function JeopardyBoardView({ board, onBack, onCellClick, onRefres
   const [catCol, setCatCol]       = useState(0)
   const [catName, setCatName]     = useState('')
   const [catImg, setCatImg]       = useState<string | null>(null)
+  const [catTimerOverride, setCatTimerOverride]         = useState<string>('')
+  const [catTimerIncrOverride, setCatTimerIncrOverride] = useState<string>('')
   const [catSaving, setCatSaving] = useState(false)
 
   // Reset
@@ -44,6 +49,8 @@ export default function JeopardyBoardView({ board, onBack, onCellClick, onRefres
       setCols(board.cols)
       setRows(board.rows)
       setBasePts(board.basePts)
+      setBaseTimer(board.baseTimer ?? 30)
+      setTimerInc(board.timerIncrement ?? 0)
       setDblText(board.doubleSettings?.text ?? 'DOUBLE POINTS!')
       setDblImage(board.doubleSettings?.image ?? null)
       setDblAudio(board.doubleSettings?.audio ?? null)
@@ -57,7 +64,9 @@ export default function JeopardyBoardView({ board, onBack, onCellClick, onRefres
       await api.buildJeopardyBoard(
         Math.max(1, Math.min(12, cols)),
         Math.max(1, Math.min(10, rows)),
-        Math.max(100, basePts)
+        Math.max(100, basePts),
+        Math.max(0, baseTimer),
+        Math.max(0, timerIncrement)
       )
       // Save double settings separately
       await api.updateDoubleSettings(dblText, dblImage, dblAudio)
@@ -83,13 +92,17 @@ export default function JeopardyBoardView({ board, onBack, onCellClick, onRefres
     setCatCol(col)
     setCatName(cat.name)
     setCatImg(cat.bgImage)
+    setCatTimerOverride(cat.timerOverride !== null && cat.timerOverride !== undefined ? String(cat.timerOverride) : '')
+    setCatTimerIncrOverride(cat.timerIncrementOverride !== null && cat.timerIncrementOverride !== undefined ? String(cat.timerIncrementOverride) : '')
     setCatOpen(true)
   }
 
   async function handleCatSave() {
     setCatSaving(true)
     try {
-      await api.updateCategory(catCol, catName || `Category ${catCol + 1}`, catImg)
+      const catTO   = catTimerOverride.trim() === '' ? null : Math.max(0, parseInt(catTimerOverride) || 0)
+      const catTINC = catTimerIncrOverride.trim() === '' ? null : Math.max(0, parseInt(catTimerIncrOverride) || 0)
+      await api.updateCategory(catCol, catName || `Category ${catCol + 1}`, catImg, catTO, catTINC)
       onRefresh()
       setCatOpen(false)
     } finally {
@@ -115,7 +128,7 @@ export default function JeopardyBoardView({ board, onBack, onCellClick, onRefres
                      rounded px-3 py-1.5 transition-all">
           <ArrowLeft size={13} /> Home
         </button>
-        <span className="text-[13px] font-semibold text-tx-primary tracking-wide">Jeopardy</span>
+        <span className="text-[13px] font-semibold text-tx-primary tracking-wide">{title}</span>
         <div className="flex items-center gap-2">
           {board && (
             <button onClick={handleReset} onMouseLeave={() => setResetConfirm(false)}
@@ -250,6 +263,26 @@ export default function JeopardyBoardView({ board, onBack, onCellClick, onRefres
         {/* Divider */}
         <div className="border-t border-border-subtle pt-3 flex flex-col gap-3">
           <p className="text-[12px] font-semibold text-tx-secondary uppercase tracking-wide">
+            ⏱ Question Timers
+          </p>
+          <p className="text-[11px] text-tx-dim -mt-1">
+            Set to 0 to disable timers board-wide. Categories and individual questions can override these values.
+          </p>
+          <div className="grid grid-cols-2 gap-3">
+            <FormField label="Base Timer (seconds)">
+              <input className={inputClass} type="number" min={0} step={5} value={baseTimer}
+                onChange={e => setBaseTimer(+e.target.value)} />
+            </FormField>
+            <FormField label="Timer Increment (per row)">
+              <input className={inputClass} type="number" min={0} step={5} value={timerIncrement}
+                onChange={e => setTimerInc(+e.target.value)} />
+            </FormField>
+          </div>
+        </div>
+
+        {/* Divider */}
+        <div className="border-t border-border-subtle pt-3 flex flex-col gap-3">
+          <p className="text-[12px] font-semibold text-tx-secondary uppercase tracking-wide">
             ⚡ Double Points Popup
           </p>
           <p className="text-[11px] text-tx-dim -mt-1">
@@ -318,6 +351,26 @@ export default function JeopardyBoardView({ board, onBack, onCellClick, onRefres
             onKeyDown={e => { if (e.key === 'Enter') handleCatSave() }} autoFocus />
         </FormField>
         <ImageUpload label="Background Image (optional)" value={catImg} onChange={setCatImg} />
+
+        <div className="border-t border-border-subtle pt-3 flex flex-col gap-2">
+          <p className="text-[12px] font-semibold text-tx-secondary uppercase tracking-wide">⏱ Timer Override</p>
+          <p className="text-[11px] text-tx-dim">Leave blank to inherit board settings. Enter 0 to disable timers for this category.</p>
+          <div className="grid grid-cols-2 gap-3">
+            <FormField label="Base Timer Override (s)">
+              <input className={inputClass} type="number" min={0} step={5}
+                placeholder="Inherit board"
+                value={catTimerOverride}
+                onChange={e => setCatTimerOverride(e.target.value)} />
+            </FormField>
+            <FormField label="Increment Override (s/row)">
+              <input className={inputClass} type="number" min={0} step={5}
+                placeholder="Inherit board"
+                value={catTimerIncrOverride}
+                onChange={e => setCatTimerIncrOverride(e.target.value)} />
+            </FormField>
+          </div>
+        </div>
+
         <div className="flex gap-2 justify-end pt-1.5 border-t border-border-subtle mt-1">
           <button onClick={() => setCatOpen(false)}
             className="px-4 py-2 text-[13px] font-medium text-tx-secondary border border-border

@@ -21,12 +21,13 @@ const VARIANT_COLORS: Record<string, string> = {
 
 interface CLBoardViewProps {
   board: CLBoard | null
+  title: string
   onBack: () => void
   onQuestionClick: (catIndex: number, qIndex: number) => void
   onRefresh: () => void
 }
 
-export default function CLBoardView({ board, onBack, onQuestionClick, onRefresh }: CLBoardViewProps) {
+export default function CLBoardView({ board, title, onBack, onQuestionClick, onRefresh }: CLBoardViewProps) {
   // ── Settings modal ────────────────────────────────────
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [clRounds, setClRounds]   = useState(3)
@@ -112,7 +113,7 @@ export default function CLBoardView({ board, onBack, onQuestionClick, onRefresh 
                      rounded px-3 py-1.5 transition-all">
           <ArrowLeft size={13} /> Home
         </button>
-        <span className="text-[13px] font-semibold text-tx-primary tracking-wide">Common Link</span>
+        <span className="text-[13px] font-semibold text-tx-primary tracking-wide">{title}</span>
         <div className="flex items-center gap-2">
           {board && (
             <button onClick={handleReset} onMouseLeave={() => setResetConfirm(false)}

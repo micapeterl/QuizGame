@@ -30,10 +30,11 @@ export default function QuestionScreen({
   activePlayer, halfPoints, initiatorId,
   onBack, onReveal, onAward, onRefresh
 }: QuestionScreenProps) {
-  const [editOpen, setEditOpen]   = useState(false)
-  const [editText, setEditText]   = useState('')
-  const [editImage, setEditImage] = useState<string | null>(null)
-  const [saving, setSaving]       = useState(false)
+  const [editOpen, setEditOpen]       = useState(false)
+  const [editText, setEditText]       = useState('')
+  const [editImage, setEditImage]     = useState<string | null>(null)
+  const [editTimerOverride, setEditTimerOverride] = useState<string>('')
+  const [saving, setSaving]           = useState(false)
   const [awardWarn, setAwardWarn] = useState(false)
 
   // Double popup state — only fires on question mode
@@ -123,13 +124,18 @@ export default function QuestionScreen({
   function openEdit() {
     setEditText(data.text)
     setEditImage(data.image)
+    const to = cell.timerOverride
+    setEditTimerOverride(to !== null && to !== undefined ? String(to) : '')
     setEditOpen(true)
   }
 
   async function handleSave() {
     setSaving(true)
     try {
-      await api.updateCell(col, row, mode, editText.trim(), editImage)
+      const to = editTimerOverride.trim() === '' ? undefined
+               : editTimerOverride.trim() === '0' ? 0
+               : Math.max(0, parseInt(editTimerOverride) || 0)
+      await api.updateCell(col, row, mode, editText.trim(), editImage, to === undefined ? undefined : to)
       onRefresh()
       setEditOpen(false)
     } finally {
@@ -322,6 +328,23 @@ export default function QuestionScreen({
             autoFocus
           />
         </FormField>
+        {/* Timer override — only shown on question side */}
+        {mode === 'question' && (
+          <div className="border-t border-border-subtle pt-3 flex flex-col gap-1.5">
+            <label className="text-[12px] font-medium text-tx-secondary uppercase tracking-wide">⏱ Timer Override (seconds)</label>
+            <p className="text-[11px] text-tx-dim">Leave blank to use category/board setting. Enter 0 to disable timer for this question only.</p>
+            <input
+              className={inputClass}
+              type="number"
+              min={0}
+              step={5}
+              placeholder="Inherit from category / board"
+              value={editTimerOverride}
+              onChange={e => setEditTimerOverride(e.target.value)}
+            />
+          </div>
+        )}
+
         <div className="flex gap-2 justify-end pt-1.5 border-t border-border-subtle mt-1">
           <button onClick={() => setEditOpen(false)}
             className="px-4 py-2 text-[13px] font-medium text-tx-secondary border border-border

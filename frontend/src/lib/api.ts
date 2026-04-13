@@ -24,18 +24,27 @@ export const awardPoints = (playerId: string, points: number) =>
   api.post('/players/award', { player_id: playerId, points }).then(r => r.data)
 
 // ── Jeopardy ──────────────────────────────────────────
-export const buildJeopardyBoard = (cols: number, rows: number, basePts: number) =>
-  api.post<JeopardyBoard>('/jeopardy/build', { cols, rows, base_pts: basePts }).then(r => r.data)
+export const buildJeopardyBoard = (cols: number, rows: number, basePts: number, baseTimer: number = 30, timerIncrement: number = 0) =>
+  api.post<JeopardyBoard>('/jeopardy/build', { cols, rows, base_pts: basePts, base_timer: baseTimer, timer_increment: timerIncrement }).then(r => r.data)
 
-export const updateCategory = (col: number, name: string, bgImage: string | null) =>
-  api.patch('/jeopardy/category', { col, name, bg_image: bgImage }).then(r => r.data)
+export const updateCategory = (
+  col: number, name: string, bgImage: string | null,
+  timerOverride: number | null = null,
+  timerIncrementOverride: number | null = null,
+) =>
+  api.patch('/jeopardy/category', { col, name, bg_image: bgImage, timer_override: timerOverride, timer_increment_override: timerIncrementOverride }).then(r => r.data)
 
 export const updateCell = (
   col: number, row: number,
   side: 'question' | 'answer',
-  text: string, image: string | null
+  text: string, image: string | null,
+  timerOverride?: number | null,  // undefined=don't change, null/-1=clear, 0=disable, >0=seconds
 ) =>
-  api.patch('/jeopardy/cell', { col, row, side, text, image }).then(r => r.data)
+  api.patch('/jeopardy/cell', {
+    col, row, side, text, image,
+    timer_override: timerOverride === undefined ? undefined :
+                    timerOverride === null ? -1 : timerOverride,
+  }).then(r => r.data)
 
 export const markAnswered = (col: number, row: number, answered: boolean) =>
   api.patch('/jeopardy/cell/answered', { col, row, answered }).then(r => r.data)

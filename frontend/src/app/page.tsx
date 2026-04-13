@@ -1,6 +1,7 @@
 'use client'
 import { useCallback, useEffect, useState } from 'react'
 import type { GameState, HomeSettings, Player } from '@/types'
+import { resolveTimer } from '@/lib/timer'
 import * as api from '@/lib/api'
 import { applyFont, injectCustomFont } from '@/components/games/HomeScreen'
 
@@ -29,6 +30,8 @@ export default function Page() {
   const [clActiveCell, setCLActiveCell] = useState<{ catIndex: number; qIndex: number } | null>(null)
   const [rollResults, setRollResults]   = useState<Record<string, number>>({})
   const [transition, setTransition]     = useState<{ initiator: Player; next: Player } | null>(null)
+  const [timerKey, setTimerKey]           = useState(0)
+  const [timerStarted, setTimerStarted]   = useState(false)
   const [loading, setLoading]         = useState(true)
 
   const refresh = useCallback(async () => {
@@ -50,11 +53,14 @@ export default function Page() {
     setActiveCell({ col, row })
     setInitiatorId(state?.activePlayerId ?? null)
     setQuestionRound(1)
+    setTimerKey(k => k + 1)
+    setTimerStarted(false)
     setScreen('question')
   }
 
   function handleCLCellClick(catIndex: number, qIndex: number) {
     setCLActiveCell({ catIndex, qIndex })
+    setInitiatorId(state?.activePlayerId ?? null)
     setScreen('cl_question')
   }
 
@@ -118,6 +124,15 @@ export default function Page() {
     && state.activePlayerId === finalGuessPlayerId
     && players.length > 1
 
+  // ── Effective timer for current question ─────────────────────────────────
+  const effectiveTimer = (activeCell && state.jeopardy)
+    ? resolveTimer(state.jeopardy, activeCell.col, activeCell.row)
+    : (state.jeopardy?.baseTimer ?? 30)
+
+  // Card name lookup — used for sub-topbar titles
+  const cardName = (id: string) =>
+    state.homeSettings.cards.find(c => c.id === id)?.name ?? id
+
   // CL question lookup
   const clCat = clActiveCell ? state.commonLink?.categories[clActiveCell.catIndex] ?? null : null
   const clQ   = clActiveCell && clCat ? clCat.questions[clActiveCell.qIndex] ?? null : null
@@ -135,18 +150,30 @@ export default function Page() {
         nextPlayerLocked={nextPlayerLocked}
         onToggleSidebar={() => setSidebar(o => !o)}
         onSetActive={handleSetActive}
-        onAdvanceTurn={async () => {
-          // Detect if this advance will land on the initiator — if so, increment round
+        showTimer={screen === 'question' && effectiveTimer > 0}
+        timerSeconds={effectiveTimer}
+        timerKey={timerKey}
+        timerAutoStart={timerStarted}
+        onTimerExpire={async () => {
           const currentIndex = state.players.findIndex(p => p.id === state.activePlayerId)
           const nextIndex = (currentIndex + 1) % state.players.length
           const nextId = state.players[nextIndex]?.id
           const willLoopToInitiator = nextId === initiatorId && isOnQuestionPage
           await api.advanceTurn()
           await refresh()
-          // Increment AFTER refresh so the new activePlayer and new round apply together
-          if (willLoopToInitiator) {
-            setQuestionRound(r => r + 1)
-          }
+          if (willLoopToInitiator) setQuestionRound(r => r + 1)
+          setTimerStarted(true)
+          setTimerKey(k => k + 1)
+        }}
+        onAdvanceTurn={async () => {
+          const currentIndex = state.players.findIndex(p => p.id === state.activePlayerId)
+          const nextIndex = (currentIndex + 1) % state.players.length
+          const nextId = state.players[nextIndex]?.id
+          const willLoopToInitiator = nextId === initiatorId && isOnQuestionPage
+          await api.advanceTurn()
+          await refresh()
+          if (willLoopToInitiator) setQuestionRound(r => r + 1)
+          if (isOnQuestionPage) { setTimerKey(k => k + 1) }  // timerStarted stays true if already running
         }}
       />
 
@@ -177,6 +204,7 @@ export default function Page() {
         {screen === 'jeopardy' && (
           <JeopardyBoardView
             board={state.jeopardy}
+            title={cardName('jeopardy')}
             onBack={() => setScreen('home')}
             onCellClick={handleCellClick}
             onRefresh={refresh}
@@ -261,6 +289,7 @@ export default function Page() {
         {screen === 'commonlink' && (
           <CLBoardView
             board={state.commonLink ?? null}
+            title={cardName('commonlink')}
             onBack={() => setScreen('home')}
             onQuestionClick={handleCLCellClick}
             onRefresh={refresh}
@@ -274,9 +303,11 @@ export default function Page() {
             question={clQ}
             variant={clCat.variant as import('@/types').CLVariant}
             points={clCat.points}
+            players={state.players}
+            initiatorId={initiatorId}
             activePlayer={activePlayer}
-            onBack={() => setScreen('commonlink')}
-            onAward={() => setScreen('commonlink')}
+            onBack={() => { setInitiatorId(null); setScreen('commonlink') }}
+            onAward={() => { setInitiatorId(null); setScreen('commonlink') }}
             onRefresh={refresh}
           />
         )}

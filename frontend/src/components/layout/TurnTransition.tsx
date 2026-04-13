@@ -3,17 +3,18 @@ import { useEffect, useRef, useState } from 'react'
 import type { Player } from '@/types'
 import { getInitial } from '@/lib/colors'
 
-// ── Large chip (mirrors active chip in TopBar) ────────────────────────────────
-function LargeChip({ player }: { player: Player }) {
+// ── Chip at the "active turn" size — matches TopBar's large chip exactly ──────
+function ActiveChip({ player }: { player: Player }) {
   const color = player.color
   return (
     <div
-      className="flex items-center gap-3 rounded-xl px-4 py-3 border-2 flex-shrink-0"
+      className="flex items-center gap-3 rounded-xl px-4 py-3 border-2"
       style={{
         borderColor: color,
-        background: `${color}15`,
-        boxShadow: `0 0 24px ${color}30`,
-        width: '220px',
+        background:  `${color}15`,
+        boxShadow:   `0 0 24px ${color}30`,
+        width:       '220px',
+        flexShrink:  0,
       }}
     >
       <div
@@ -39,102 +40,93 @@ function LargeChip({ player }: { player: Player }) {
   )
 }
 
-const CHIP_W   = 220
-const SLIDE_MS = 500
-const LINGER_MS = 1800
-const FLY_MS   = 600
+// ── Timing ────────────────────────────────────────────────────────────────────
+const CHIP_W     = 220   // DOM width of ActiveChip
+const CHIP_H     = 90    // approximate DOM height
+const BIG_SCALE  = 4     // 4× the active size = 16× default
+const SLIDE_MS   = 500
+const LINGER_MS  = 1800
+const FLY_MS     = 650
 
-interface TurnTransitionProps {
-  initiator:  Player
-  next:       Player
-  onComplete: () => void
-}
+interface Props { initiator: Player; next: Player; onComplete: () => void }
 
-export default function TurnTransition({ initiator, next, onComplete }: TurnTransitionProps) {
-  // overlay + strip
-  const [overlayOpacity, setOverlayOpacity] = useState(1)
-  const [stripX, setStripX]                 = useState(0)
+export default function TurnTransition({ initiator, next, onComplete }: Props) {
+  // Which chip is showing in the center window
+  const [showNext,        setShowNext]        = useState(false)
+  // Slide offset for the two-chip row (in un-scaled px, moves by CHIP_W)
+  const [slideOffset,     setSlideOffset]     = useState(0)
+  // Flying chip state
+  const [flyVisible,      setFlyVisible]      = useState(false)
+  const [flyLeft,         setFlyLeft]         = useState(0)
+  const [flyTop,          setFlyTop]          = useState(0)
+  const [flyScale,        setFlyScale]        = useState(BIG_SCALE)
+  const [flyTransition,   setFlyTransition]   = useState('none')
+  // Overlay opacity
+  const [overlayOpacity,  setOverlayOpacity]  = useState(1)
+  // Hide static centered chip once fly clone is live
+  const [centerHidden,    setCenterHidden]    = useState(false)
 
-  // phase: slide → linger → fly → (onComplete)
-  const [phase, setPhase] = useState<'slide' | 'linger' | 'fly'>('slide')
+  // Ref on the centered window so we can measure its screen position
+  const windowRef = useRef<HTMLDivElement>(null)
 
-  // flying chip
-  const [flyStyle, setFlyStyle]   = useState<React.CSSProperties>({})
-  const [flyVisible, setFlyVisible] = useState(false)
-  const [chipHidden, setChipHidden] = useState(false)   // hide centered chip once fly clone appears
+  if (!initiator || !next) return null
 
-  const centerRef = useRef<HTMLDivElement>(null)
-
-  if (!next || !initiator) return null
+  // Visual dimensions of one chip at BIG_SCALE
+  const visW = CHIP_W * BIG_SCALE  // 880
+  const visH = CHIP_H * BIG_SCALE  // 360
 
   useEffect(() => {
     let cancelled = false
 
     async function run() {
-      // ── Phase 1: brief hold then slide ───────────────────
+      // ── 1. Hold on initiator ───────────────────────────────
       await delay(1000)
       if (cancelled) return
-      setStripX(-CHIP_W)
+
+      // ── 2. Slide to next player ────────────────────────────
+      // Move the unscaled row left by CHIP_W so next chip is centered
+      setSlideOffset(-CHIP_W)
       await delay(SLIDE_MS)
       if (cancelled) return
+      setShowNext(true)
 
-      // ── Phase 2: linger ───────────────────────────────────
-      setPhase('linger')
+      // ── 3. Linger on next player ───────────────────────────
       await delay(LINGER_MS)
       if (cancelled) return
 
-      // ── Phase 3: fly to topbar ────────────────────────────
-      setPhase('fly')
-
-      // Find the topbar chip for the next player
+      // ── 4. Fly to topbar ───────────────────────────────────
+      const winEl    = windowRef.current
       const targetEl = document.querySelector(`[data-playerid="${next.id}"]`)
-      const chipEl   = centerRef.current
-      if (!targetEl || !chipEl) { onComplete(); return }
+      if (!winEl || !targetEl) { onComplete(); return }
 
-      const fromRect   = chipEl.getBoundingClientRect()
+      const winRect    = winEl.getBoundingClientRect()
       const targetRect = targetEl.getBoundingClientRect()
 
-      // Place flying clone exactly on top of the centered chip
-      setFlyStyle({
-        position:        'fixed',
-        left:            `${fromRect.left}px`,
-        top:             `${fromRect.top}px`,
-        width:           `${fromRect.width}px`,
-        height:          `${fromRect.height}px`,
-        transformOrigin: 'top left',
-        transform:       'scale(1)',
-        transition:      'none',
-        zIndex:          60,
-      })
-      setFlyVisible(true)
-      setChipHidden(true)   // hide the static centered chip so there's no double
+      // The clone is the chip at native size (CHIP_W × CHIP_H), scaled up.
+      // Start: scaled to BIG_SCALE, positioned so top-left aligns with window top-left.
+      // End:   scaled so it matches the topbar active chip size (targetRect),
+      //        positioned at targetRect top-left.
+      // Since transformOrigin is 'top left', position = where top-left corner goes.
+      const endScale = targetRect.width / CHIP_W
 
-      // One rAF to ensure the clone is painted before we start animating
-      await raf()
-      await raf()
+      setFlyLeft(winRect.left)
+      setFlyTop(winRect.top)
+      setFlyScale(BIG_SCALE)
+      setFlyTransition('none')
+      setFlyVisible(true)
+      setCenterHidden(true)
+
+      await raf(); await raf()
       if (cancelled) return
 
-      // Scale factor so chip shrinks to fit the target rect
-      const scale = Math.min(
-        targetRect.width  / fromRect.width,
-        targetRect.height / fromRect.height,
+      setFlyLeft(targetRect.left)
+      setFlyTop(targetRect.top)
+      setFlyScale(endScale)
+      setFlyTransition(
+        `left ${FLY_MS}ms cubic-bezier(0.4,0,0.2,1),
+         top  ${FLY_MS}ms cubic-bezier(0.4,0,0.2,1),
+         transform ${FLY_MS}ms cubic-bezier(0.4,0,0.2,1)`
       )
-
-      setFlyStyle({
-        position:        'fixed',
-        left:            `${targetRect.left}px`,
-        top:             `${targetRect.top}px`,
-        width:           `${fromRect.width}px`,
-        height:          `${fromRect.height}px`,
-        transformOrigin: 'top left',
-        transform:       `scale(${scale})`,
-        transition:      `left ${FLY_MS}ms cubic-bezier(0.4,0,0.2,1),
-                          top  ${FLY_MS}ms cubic-bezier(0.4,0,0.2,1),
-                          transform ${FLY_MS}ms cubic-bezier(0.4,0,0.2,1)`,
-        zIndex:          60,
-      })
-
-      // Fade overlay out at the same time
       setOverlayOpacity(0)
 
       await delay(FLY_MS + 100)
@@ -149,74 +141,72 @@ export default function TurnTransition({ initiator, next, onComplete }: TurnTran
 
   return (
     <>
-      {/* Dark overlay behind everything */}
+      {/* Dark overlay */}
       <div
         className="fixed inset-0 z-50 pointer-events-none"
         style={{
-          background: 'rgba(0,0,0,0.78)',
+          background: 'rgba(0,0,0,0.80)',
           opacity:    overlayOpacity,
-          transition: phase === 'fly' ? `opacity ${FLY_MS}ms ease` : 'none',
+          transition: flyVisible ? `opacity ${FLY_MS}ms ease` : 'none',
         }}
       />
 
-      {/* Clipping window + sliding strip (slide & linger phases) */}
-      {!flyVisible && (
+      {/* Centered clipping window — exactly one chip wide/tall at BIG_SCALE */}
+      {!centerHidden && (
         <div
-          className="fixed z-[51] pointer-events-none"
+          ref={windowRef}
+          className="fixed z-[51] pointer-events-none overflow-hidden"
           style={{
+            width:     `${visW}px`,
+            height:    `${visH}px`,
             left:      '50%',
             top:       '50%',
-            transform: 'translate(-50%, -50%)',
-            width:     `${CHIP_W}px`,
-            overflow:  'hidden',
+            marginLeft: `-${visW / 2}px`,
+            marginTop:  `-${visH / 2}px`,
           }}
         >
+          {/*
+            Two chips side by side at native size, then scale the whole row up.
+            translateX moves by CHIP_W (native) which becomes CHIP_W*SCALE visually.
+          */}
           <div
-            className="flex"
             style={{
-              width:      `${CHIP_W * 2}px`,
-              transform:  `translateX(${stripX}px)`,
-              transition: phase === 'slide'
+              display:         'flex',
+              width:           `${CHIP_W * 2}px`,
+              transform:       `scale(${BIG_SCALE}) translateX(${slideOffset}px)`,
+              transformOrigin: 'top left',
+              transition:      slideOffset !== 0
                 ? `transform ${SLIDE_MS}ms cubic-bezier(0.4,0,0.2,1)`
                 : 'none',
             }}
           >
-            {/* Initiator — slides out left */}
-            <div style={{ width: CHIP_W, flexShrink: 0 }}>
-              <LargeChip player={initiator} />
-            </div>
-            {/* Next player — slides in from right */}
-            <div
-              ref={phase === 'slide' ? centerRef : undefined}
-              style={{ width: CHIP_W, flexShrink: 0 }}
-            >
-              <LargeChip player={next} />
-            </div>
+            <ActiveChip player={initiator} />
+            <ActiveChip player={next} />
           </div>
         </div>
       )}
 
-      {/* Linger — chip statically centered so we can measure it for the fly */}
-      {phase === 'linger' && !chipHidden && (
-        <div
-          ref={centerRef}
-          className="fixed z-[51] pointer-events-none"
-          style={{ left: '50%', top: '50%', transform: 'translate(-50%, -50%)' }}
-        >
-          <LargeChip player={next} />
-        </div>
-      )}
-
-      {/* Flying clone */}
+      {/* Flying clone — native chip scaled up, flies and shrinks to topbar */}
       {flyVisible && (
-        <div className="pointer-events-none" style={{ ...flyStyle, position: 'fixed' }}>
-          <LargeChip player={next} />
+        <div
+          className="pointer-events-none z-[61]"
+          style={{
+            position:        'fixed',
+            left:             flyLeft,
+            top:              flyTop,
+            width:            CHIP_W,
+            height:           CHIP_H,
+            transform:       `scale(${flyScale})`,
+            transformOrigin: 'top left',
+            transition:       flyTransition,
+          }}
+        >
+          <ActiveChip player={next} />
         </div>
       )}
     </>
   )
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
 const delay = (ms: number) => new Promise<void>(res => setTimeout(res, ms))
 const raf   = ()           => new Promise<void>(res => requestAnimationFrame(() => res()))

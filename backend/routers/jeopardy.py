@@ -51,6 +51,8 @@ def build_board(req: BuildBoardRequest):
         cols=cols,
         rows=rows,
         basePts=base_pts,
+        baseTimer=max(0, req.base_timer),
+        timerIncrement=max(0, req.timer_increment),
         categories=[prev_cat(c) for c in range(cols)],
         cells=[[prev_cell(c, r) for r in range(rows)] for c in range(cols)],
         doubleSettings=prev_double,
@@ -71,8 +73,10 @@ def update_category(req: UpdateCategoryRequest):
         raise HTTPException(status_code=400, detail="Column out of range")
 
     def _update(s):
-        s.jeopardy.categories[req.col].name    = req.name
-        s.jeopardy.categories[req.col].bgImage = req.bg_image
+        s.jeopardy.categories[req.col].name                   = req.name
+        s.jeopardy.categories[req.col].bgImage                = req.bg_image
+        s.jeopardy.categories[req.col].timerOverride           = req.timer_override
+        s.jeopardy.categories[req.col].timerIncrementOverride  = req.timer_increment_override
     mutate_and_save(_update)
     return {"ok": True}
 
@@ -97,6 +101,9 @@ def update_cell(req: UpdateCellRequest):
             cell.question = content
         else:
             cell.answer = content
+        # -1 is a sentinel meaning "clear the override" (JSON doesn't distinguish null from absent)
+        if req.timer_override is not None:
+            cell.timerOverride = None if req.timer_override == -1 else req.timer_override
     mutate_and_save(_update)
     return {"ok": True}
 

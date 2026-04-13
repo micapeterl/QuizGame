@@ -17,12 +17,15 @@ export interface JeopardyCell {
   question: JeopardyContent
   answer: JeopardyContent
   answered: boolean
+  timerOverride: number | null
 }
 
 export interface JeopardyCategory {
   name: string
   bgImage: string | null
   doubleIndex: number | null
+  timerOverride: number | null
+  timerIncrementOverride: number | null
 }
 
 export interface DoubleSettings {
@@ -36,6 +39,8 @@ export interface JeopardyBoard {
   cols: number
   rows: number
   basePts: number
+  baseTimer: number
+  timerIncrement: number
   categories: JeopardyCategory[]
   cells: JeopardyCell[][]   // [col][row]
   doubleSettings: DoubleSettings

@@ -14,13 +14,16 @@ class CellModel(BaseModel):
     question: ContentModel = ContentModel()
     answer:   ContentModel = ContentModel()
     answered: bool = False
+    timerOverride: Optional[int] = None   # None=use category/board, 0=disabled, >0=seconds
 
 
 # ── Jeopardy category ────────────────────────────────────
 class CategoryModel(BaseModel):
     name: str
     bgImage: Optional[str] = None
-    doubleIndex: Optional[int] = None   # which row is the double-points question
+    doubleIndex: Optional[int] = None
+    timerOverride: Optional[int] = None           # None=use board, 0=disabled for category
+    timerIncrementOverride: Optional[int] = None # None=use board increment
 
 
 # ── Double-points popup settings ─────────────────────────
@@ -36,6 +39,8 @@ class JeopardyBoardModel(BaseModel):
     cols: int
     rows: int
     basePts: int
+    baseTimer: int = 30               # seconds, 0 = timers disabled board-wide
+    timerIncrement: int = 0           # extra seconds added per row
     categories: list[CategoryModel]
     cells: list[list[CellModel]]   # [col][row]
     doubleSettings: DoubleSettingsModel = DoubleSettingsModel()
@@ -125,12 +130,16 @@ class BuildBoardRequest(BaseModel):
     cols: int
     rows: int
     base_pts: int
+    base_timer: int = 30
+    timer_increment: int = 0
 
 
 class UpdateCategoryRequest(BaseModel):
     col: int
     name: str
     bg_image: Optional[str] = None
+    timer_override: Optional[int] = None
+    timer_increment_override: Optional[int] = None
 
 
 class UpdateCellRequest(BaseModel):
@@ -139,6 +148,7 @@ class UpdateCellRequest(BaseModel):
     side: str   # "question" | "answer"
     text: str
     image: Optional[str] = None
+    timer_override: Optional[int] = None   # sentinel: -1 means "clear override"
 
 
 class MarkAnsweredRequest(BaseModel):
