@@ -120,7 +120,7 @@ export default function TopBar({ players, activePlayerId, rollResults, finalGues
           const bubbleVisible = roll !== undefined
 
           return isActive ? (
-            <div key={p.id} className="relative flex-shrink-0 flex flex-col items-center gap-0.5">
+            <div key={p.id} data-playerid={p.id} className="relative flex-shrink-0 flex flex-col items-center gap-0.5">
               {/* Final Guess label on active chip */}
               {finalGuessPlayerId === p.id && (
                 <span className="text-[9px] font-black uppercase tracking-widest text-red-400 leading-none">
@@ -153,7 +153,7 @@ export default function TopBar({ players, activePlayerId, rollResults, finalGues
               {bubbleVisible && <RollBubble number={roll} color={color} visible={bubbleVisible} />}
             </div>
           ) : (
-            <div key={p.id} className="relative flex-shrink-0">
+            <div key={p.id} data-playerid={p.id} className="relative flex-shrink-0">
               <button
                 onClick={() => onSetActive(p.id)}
                 title={`${p.name} — click to set as active`}

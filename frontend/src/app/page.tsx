@@ -1,6 +1,6 @@
 'use client'
 import { useCallback, useEffect, useState } from 'react'
-import type { GameState, HomeSettings } from '@/types'
+import type { GameState, HomeSettings, Player } from '@/types'
 import * as api from '@/lib/api'
 import { applyFont, injectCustomFont } from '@/components/games/HomeScreen'
 
@@ -11,6 +11,7 @@ import JeopardyBoardView from '@/components/games/jeopardy/BoardView'
 import QuestionScreen from '@/components/games/jeopardy/QuestionScreen'
 import CLBoardView from '@/components/games/commonlink/BoardView'
 import CLQuestionScreen from '@/components/games/commonlink/QuestionScreen'
+import TurnTransition from '@/components/layout/TurnTransition'
 
 type Screen = 'home' | 'jeopardy' | 'question' | 'answer' | 'commonlink' | 'cl_question'
 
@@ -27,6 +28,7 @@ export default function Page() {
   const [questionRound, setQuestionRound] = useState(1)  // 1 = first round (full pts), 2+ = half pts
   const [clActiveCell, setCLActiveCell] = useState<{ catIndex: number; qIndex: number } | null>(null)
   const [rollResults, setRollResults]   = useState<Record<string, number>>({})
+  const [transition, setTransition]     = useState<{ initiator: Player; next: Player } | null>(null)
   const [loading, setLoading]         = useState(true)
 
   const refresh = useCallback(async () => {
@@ -200,7 +202,21 @@ export default function Page() {
               setInitiatorId(null); setQuestionRound(1); setScreen('jeopardy')
             }}
             onReveal={() => setScreen('answer')}
-            onAward={() => { setInitiatorId(null); setQuestionRound(1); setScreen('jeopardy') }}
+            onAward={async () => {
+              const curIdx  = state.players.findIndex(p => p.id === state.activePlayerId)
+              const nextIdx = curIdx >= 0 ? (curIdx + 1) % state.players.length : -1
+              const initiatorPlayer = state.players.find(p => p.id === initiatorId) ?? (curIdx >= 0 ? state.players[curIdx] : null)
+              const nextPlayer = nextIdx >= 0 ? state.players[nextIdx] : null
+              setInitiatorId(null); setQuestionRound(1)
+              const showTransition = !!(nextPlayer?.color && initiatorPlayer?.color && nextPlayer.id !== initiatorPlayer.id && state.players.length > 1)
+              if (showTransition) {
+                // Change screen first so board is visible behind the overlay
+                setScreen('jeopardy')
+                setTransition({ initiator: initiatorPlayer!, next: nextPlayer! })
+              } else {
+                setScreen('jeopardy')
+              }
+            }}
             onRefresh={refresh}
           />
         )}
@@ -224,7 +240,20 @@ export default function Page() {
               setInitiatorId(null); setQuestionRound(1); setScreen('jeopardy')
             }}
             onReveal={() => {}}
-            onAward={() => { setInitiatorId(null); setQuestionRound(1); setScreen('jeopardy') }}
+            onAward={async () => {
+              const curIdx  = state.players.findIndex(p => p.id === state.activePlayerId)
+              const nextIdx = curIdx >= 0 ? (curIdx + 1) % state.players.length : -1
+              const initiatorPlayer = state.players.find(p => p.id === initiatorId) ?? (curIdx >= 0 ? state.players[curIdx] : null)
+              const nextPlayer = nextIdx >= 0 ? state.players[nextIdx] : null
+              setInitiatorId(null); setQuestionRound(1)
+              const showTransition = !!(nextPlayer?.color && initiatorPlayer?.color && nextPlayer.id !== initiatorPlayer.id && state.players.length > 1)
+              if (showTransition) {
+                setScreen('jeopardy')
+                setTransition({ initiator: initiatorPlayer!, next: nextPlayer! })
+              } else {
+                setScreen('jeopardy')
+              }
+            }}
             onRefresh={refresh}
           />
         )}
@@ -252,6 +281,14 @@ export default function Page() {
           />
         )}
       </div>
+      {/* Turn transition overlay */}
+      {transition && (
+        <TurnTransition
+          initiator={transition.initiator}
+          next={transition.next}
+          onComplete={() => setTransition(null)}
+        />
+      )}
     </>
   )
 }
